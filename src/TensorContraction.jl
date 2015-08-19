@@ -16,9 +16,8 @@ import Base.convert
 		# Test if there are repeated indices
 		if (N == length(unique(Indices.parameters)))
 			return :(Tensor{$T,$N,$Indices}(data))
-		else
-		    # TODO: Allow for traces and partial traces!
-			return :(error("Indices $(Indices) are not unique"))
+		else # We could perform a partial trace, but convert() should preserve data as best as possible.
+		    return :(error("Indices $(Indices) are not unique"))
 		end
 	else
 		return :(error("Attempted to assign $(length(Indices.parameters)) indices for $N-dimensional tensor"))
@@ -40,6 +39,9 @@ import Base.stride
 import Base.strides
 import Base.linearindexing
 import Base.*
+import Base.+
+import Base.-
+import Base.conj
 
 # Informational...
 eltype{T}(::Tensor{T}) = T
@@ -58,7 +60,19 @@ setindex!{T,N,Indices}(t::Tensor{T,N,Indices},v,i::Int) = setindex!(t.data,v,i)
 # similar()...
 
 # Constructing a Tensor from an Array. 
-getindex{T,N,Indices<:Tuple}(data::Array{T,N},::Type{Indices}) = convert(Tensor{T,N,Indices},data)
+@generated function getindex{T,N,Indices<:Tuple}(data::Array{T,N},::Type{Indices})
+    idx = svec_to_vec(Indices.parameters)
+    
+    # Test if Indices has correct length
+	if (N != length(Indices.parameters)); return :(error("Attempted to assign $(length(Indices.parameters)) indices for $N-dimensional tensor")); end
+	
+	# Test if there are repeated indices
+	if (N == length(unique(Indices.parameters))); return :(Tensor{$T,$N,$Indices}(data)); end
+	
+	# Perform a (full or partial) trace
+	return :(error("Indices $(Indices) are not unique"))
+end
+
 
 # Return an Array from a Tensor, permuting indices to put in request ordering
 @generated function getindex{T,N,Indices<:Tuple,Out<:Tuple}(tensor::Tensor{T,N,Indices},::Type{Out})
@@ -78,6 +92,33 @@ end
 # Sets an Array given a tensor and order
 function setindex!{T,N,Indices<:Tuple,Out<:Tuple}(arrayout::Array{T,N},tensor::Tensor{T,N,Indices},::Type{Out})
     arrayout = tensor[Out]
+end
+
+# Multiplication by a scalar
+*{Tx<:Number,T,N,Indices}(x::Tx,tensor::Tensor{T,N,Indices}) = Tensor{promote_type(Tx,T),N,Indices}(x*tensor.data)
+*{Tx<:Number,T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{promote_type(T,Tx),N,Indices}(tensor.data*x)
+
+# Element-wise addition
+@generated function +{T1,N,Indices1,T2,Indices2}(tensor1::Tensor{T1,N,Indices1},tensor2::Tensor{T2,N,Indices2})
+    if Indices1 == Indices2
+        return :(Tensor{$(promote_type(T1,T2)),N,Indices1}(tensor1.data + tensor2.data))
+    else # permute tensor2 first
+        idx1 = svec_to_vec(Indices1.parameters)
+        idx2 = svec_to_vec(Indices2.parameters)
+        return :(Tensor{$(promote_type(T1,T2)),N,Indices1}(tensor1.data + permutedims(tensor2.data,$(permutation(idx1,idx2)))))
+    end
+end
+
+# Subtraction
+-{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(-tensor.data)
+@generated function -{T1,N,Indices1,T2,Indices2}(tensor1::Tensor{T1,N,Indices1},tensor2::Tensor{T2,N,Indices2})
+    if Indices1 == Indices2
+        return :(Tensor{$(promote_type(T1,T2)),N,Indices1}(tensor1.data - tensor2.data))
+    else # permute tensor2 first
+        idx1 = svec_to_vec(Indices1.parameters)
+        idx2 = svec_to_vec(Indices2.parameters)
+        return :(Tensor{$(promote_type(T1,T2)),N,Indices1}(tensor1.data - permutedims(tensor2.data,$(permutation(idx1,idx2)))))
+    end
 end
 
 # Tensor multiply that contracts matching indices 
