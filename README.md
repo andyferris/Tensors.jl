@@ -22,6 +22,8 @@ Tensors can also be de-indexed in the desired order, on either side of the equal
 @tensor M2[[b,a]] = M # M2 must already be of type Array{T,2}
 ```
 
+Tensor's that have not been deindexed remain as `Tensor` objects, but can be treated as arrays.
+
 ### How it works
 
 TensorContraction relies heavily on Julia's expressive type system. The index names are embedded as either bitstype values (e.g. integers) or  `Symbol` *values* like `Val{:a}` and are a part of the tensor's parametric type.
@@ -35,3 +37,11 @@ The `@tensor` macro simply mangles the expression so that ``[[1,2,a,b]]`` is map
 1. For full speed, ensure that the names of the indices are fully determined at compile-time so that the appropriate code is only generated once and so that function *specialization by value* does not lead to performance degradation.
 
 2. Single-bracket indexing is still safe - use `hcat` and `vcat` when necessary to concatenate inside expresions like `@tensor v[vcat(indices1,indices2)][[a]]`. 
+
+### TODO / Ideas to implement
+
+1. Labelled eigen-decomposition, SVD, etc. Specify the left and right index names of the "matrix" by `eig(tensor,Indices_left,Indices_right,Index_out=Tuple{0}`, automatically managing the permutes, reshapes and output label names.
+
+2. A macro for automatic loop unrolling of some indices. This will allow for (a) reducing memory requirements of some tensor network contractions and (b) multi-index contractions, e.g. `a[[i]]*b[[i]]*c[[i]]` performs `sum(a.*b.*c)` and `a[[i]] = b[[i]]*c[[i]]` is equivalent to `a = b.*c`.
+
+3. Refine syntax.
