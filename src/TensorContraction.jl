@@ -174,6 +174,47 @@ end
     end
 end
 
+# Element-wise multiplication
+@generated function .*{T1,N,Indices1,T2,Indices2}(tensor1::Tensor{T1,N,Indices1},tensor2::Tensor{T2,N,Indices2})
+    if Indices1 == Indices2
+        return :(Tensor{$(promote_type(T1,T2)),N,Indices1}(tensor1.data .* tensor2.data))
+    else # permute tensor2 first
+        idx1 = svec_to_vec(Indices1.parameters)
+        idx2 = svec_to_vec(Indices2.parameters)
+        return :(Tensor{$(promote_type(T1,T2)),N,Indices1}(tensor1.data .* permutedims(tensor2.data,$(permutation(idx1,idx2)))))
+    end
+end
+
+# Element-wise division
+@generated function ./{T1,N,Indices1,T2,Indices2}(tensor1::Tensor{T1,N,Indices1},tensor2::Tensor{T2,N,Indices2})
+    if Indices1 == Indices2
+        return :(Tensor{$(promote_type(T1,T2)),N,Indices1}(tensor1.data ./ tensor2.data))
+    else # permute tensor2 first
+        idx1 = svec_to_vec(Indices1.parameters)
+        idx2 = svec_to_vec(Indices2.parameters)
+        return :(Tensor{$(promote_type(T1,T2)),N,Indices1}(tensor1.data ./ permutedims(tensor2.data,$(permutation(idx1,idx2)))))
+    end
+end
+
+# Element-wise power
+.^{Tx<:Number,T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{promote_type(T,Tx),N,Indices}(tensor.data .^ x)
+
+# Common element-wise functions such as exp, log, sin, cos, etc
+exp{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(exp(tensor.data))
+log{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(log(tensor.data))
+sin{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(sin(tensor.data))
+cos{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(cos(tensor.data))
+tan{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(tan(tensor.data))
+sinh{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(sinh(tensor.data))
+cosh{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(cosh(tensor.data))
+tanh{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(tanh(tensor.data))
+sqrt{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(sqrt(tensor.data))
+
+# Complex conjugation
+conj{T<:Real,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = tensor
+conj{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(conj(tensor.data))
+
+
 # Tensor multiply that contracts matching indices 
 @generated function *{T1,N1,Indices1,T2,N2,Indices2}(tensor1::Tensor{T1,N1,Indices1},tensor2::Tensor{T2,N2,Indices2})
     ex_str = ""
