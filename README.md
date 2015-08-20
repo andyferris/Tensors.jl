@@ -34,7 +34,4 @@ The `@tensor` macro simply mangles the expression so that ``[[1,2,a,b]]`` is map
 
 1. For full speed, ensure that the names of the indices are fully determined at compile-time so that the appropriate code is only generated once and so that function *specialization by value* does not lead to performance degradation.
 
-2. Single-bracket indexing is still safe - use `hcat` and `vcat` when necessary to concatenate inside expresions like `@tensor v[vcat(indices1,indices2)][[a]]`.
-
-3. Trace and partial trace have been temporarily disabled.
- 
+2. Single-bracket indexing is still safe - use `hcat` and `vcat` when necessary to concatenate inside expresions like `@tensor v[vcat(indices1,indices2)][[a]]`. 

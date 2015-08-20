@@ -64,13 +64,66 @@ setindex!{T,N,Indices}(t::Tensor{T,N,Indices},v,i::Int) = setindex!(t.data,v,i)
     idx = svec_to_vec(Indices.parameters)
     
     # Test if Indices has correct length
-	if (N != length(Indices.parameters)); return :(error("Attempted to assign $(length(Indices.parameters)) indices for $N-dimensional tensor")); end
+	if (N != length(idx)); return :(error("Attempted to assign $(length(Indices.parameters)) indices for $N-dimensional tensor")); end
 	
 	# Test if there are repeated indices
-	if (N == length(unique(Indices.parameters))); return :(Tensor{$T,$N,$Indices}(data)); end
+	if (N == length(unique(idx))); return :(Tensor{$T,$N,$Indices}(data)); end
 	
 	# Perform a (full or partial) trace
-	return :(error("Indices $(Indices) are not unique"))
+	uniques = unique(idx)
+    ex_str = "begin; data_tmp = zeros($T,("
+	n_sums = 0
+	unique_idx = Any[]
+	idx_strs = Vector{String}(N)
+	for i = 1:length(uniques)
+	    x = find(x->x==uniques[i],idx)
+	    if length(x) == 1
+	        idx_strs[x] = ":"
+	        push!(unique_idx,uniques[i])
+	        if length(unique_idx) > 1; ex_str = ex_str * ","; end
+	        ex_str = ex_str * "size(data,$(x[1]))"
+	    end
+	end
+	ex_str = ex_str * ")); "
+	
+	if length(unique_idx) == 0; ex_str = "begin; data_tmp = zero($T); "; end
+		
+	for i = 1:length(uniques)
+	    x = find(x->x==uniques[i],idx)
+	    if length(x) > 1
+	        n_sums += 1
+	        idx_strs[x] = "i$(n_sums)"
+	        ex_str = ex_str * "for i$(n_sums) = 1:length(size(data,$(x[1]))); "
+	    end
+	end
+	
+    ex_str = ex_str * "data_tmp" 
+    if length(unique_idx) > 0; ex_str = ex_str * "[:]"; end
+    ex_str = ex_str * " += data["
+    for i = 1:N
+        if i > 1; ex_str = ex_str * ","; end
+        ex_str = ex_str * "$(idx_strs[i])"
+    end
+    ex_str = ex_str * "]"
+    if length(unique_idx) > 0; ex_str = ex_str * "[:]"; end
+    ex_str = ex_str * "; "
+	
+	for i = 1:n_sums
+	    ex_str = ex_str * "end; "
+	end
+	
+	if length(unique_idx) > 0
+		ex_str = ex_str * "Tensor{$T,$(length(unique_idx)),Tuple{"
+		for i = 1:length(unique_idx)
+			if i > 1; ex_str = ex_str * ","; end
+			ex_str = ex_str * "$(unique_idx[i])"
+		end
+		ex_str = ex_str * "}}(data_tmp); end"
+	else
+	    ex_str = ex_str * "data_tmp; end"
+	end
+		
+	return parse("$ex_str")
 end
 
 
