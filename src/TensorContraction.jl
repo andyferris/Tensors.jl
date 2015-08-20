@@ -42,6 +42,21 @@ import Base.*
 import Base.+
 import Base.-
 import Base.conj
+import Base.(.*)
+import Base.(./)
+import Base.(.^)
+import Base.exp
+import Base.log
+import Base.sin
+import Base.cos
+import Base.tan
+import Base.sinh
+import Base.cosh
+import Base.tanh
+import Base.eig
+import Base.svd
+import Base.eigs
+import Base.svds
 
 # Informational...
 eltype{T}(::Tensor{T}) = T
@@ -200,19 +215,19 @@ end
 .^{Tx<:Number,T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{promote_type(T,Tx),N,Indices}(tensor.data .^ x)
 
 # Common element-wise functions such as exp, log, sin, cos, etc
-exp{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(exp(tensor.data))
-log{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(log(tensor.data))
-sin{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(sin(tensor.data))
-cos{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(cos(tensor.data))
-tan{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(tan(tensor.data))
-sinh{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(sinh(tensor.data))
-cosh{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(cosh(tensor.data))
-tanh{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(tanh(tensor.data))
-sqrt{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(sqrt(tensor.data))
+exp{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(exp(tensor.data))
+log{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(log(tensor.data))
+sin{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(sin(tensor.data))
+cos{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(cos(tensor.data))
+tan{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(tan(tensor.data))
+sinh{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(sinh(tensor.data))
+cosh{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(cosh(tensor.data))
+tanh{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(tanh(tensor.data))
+sqrt{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(sqrt(tensor.data))
 
 # Complex conjugation
-conj{T<:Real,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = tensor
-conj{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(conj(tensor.data))
+conj{T<:Real,N,Indices}(tensor::Tensor{T,N,Indices}) = tensor
+conj{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(conj(tensor.data))
 
 
 # Tensor multiply that contracts matching indices 
@@ -340,6 +355,68 @@ conj{T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{T,N,Indices}(conj(
     return parse(ex_str) 
 end
 
+
+@generated function eig{T,N,Indices,IndicesLeft<:Tuple,IndicesRight<:Tuple}(tensor::Tensor{T,N,Indices},::Type{IndicesLeft},::Type{IndicesRight})
+    idx_out = "eig_index"
+    
+    # We need to permute the matrix into order [indices_left, indices_right]
+    idx = svec_to_vec(Indices.parameters)
+    idx_left = svec_to_vec(IndicesLeft.parameters)
+    idx_right = svec_to_vec(IndicesRight.parameters)
+    idx_permuted = vcat(idx_left,idx_right)
+    
+    if length(idx) != length(idx_permuted); return :(error("Number of indices ($(length(idx_left)), $(length(idx_right))) does not match tensor's $N")); end
+    if length(idx_left) == 0; return :(error("At least one left index must be specified")); end
+    if length(idx_right) == 0; return :(error("At least one right index must be specified")); end
+    
+    p = permutation(idx,idx_permuted)
+        
+    # sizes
+    size_left = "size(tensor.data,$(p[1]))"
+    resize_left = "size(tensor.data,$(p[1]))"
+    for i = 2:length(idx_left)
+        size_left = size_left * "*size(tensor.data,$(p[i]))"
+        resize_left = resize_left * ",size(tensor.data,$(p[i]))"
+    end    
+    size_right = "size(tensor.data,$(p[1+length(idx_left)]))"
+    #resize_right = "size(tensor.data,$(p[1+length(idx_left)]))"
+    for i = 2:length(idx_right)
+        size_right = size_right * "*size(tensor.data,$(p[i+length(idx_left)]))"
+    #    resize_right = resize_right * ",size(tensor.data,$(p[i+length(idx_left)]))"
+    end    
+    
+    ex_str = "begin; "
+    if idx_permuted == idx # No permutation necessary, only reshape.
+        ex_str = ex_str * "(D,V) = eig(reshape(tensor.data,($size_left,$size_right))); "
+        ex_str = ex_str * "(Tensor{$T,1,Tuple{:$(idx_out)}}(D),Tensor{$T,$(1+length(idx_left)),Tuple{"
+        for i = 1:length(idx_left)
+            if isa(idx_left[i],Symbol); ex_str = ex_str * ":"; end
+            ex_str = ex_str * "$(idx_left[i])"
+            ex_str = ex_str * ","
+        end
+        ex_str = ex_str * ":$(idx_out)}}(reshape(V,($(resize_left),$(size_left))))); "
+        
+    else # permutation is necessary
+        ex_str = ex_str * "(D,V) = eig(reshape(permutedims(tensor.data,$p),($size_left,$size_right))); "
+        ex_str = ex_str * "(Tensor{$T,1,Tuple{:$(idx_out)}}(D),Tensor{$T,$(1+length(idx_left)),Tuple{"
+        for i = 1:length(idx_left)
+            if isa(idx_left[i],Symbol); ex_str = ex_str * ":"; end
+            ex_str = ex_str * "$(idx_left[i])"
+            ex_str = ex_str * ","
+        end
+        ex_str = ex_str * ":$(idx_out)}}(reshape(V,($(resize_left),$(size_left))))); "
+    end  
+    
+    ex_str = ex_str * "end"
+    #display(ex_str)
+    return parse(ex_str)
+end
+
+
+#################
+### Utilities ###
+#################
+
 "Convert Simple Vector to Vector"
 function svec_to_vec(svec::SimpleVector)
     vec = Vector{Any}(length(svec))
@@ -348,8 +425,6 @@ function svec_to_vec(svec::SimpleVector)
     end
     return vec
 end
-
-
 
 "Function finds the permutation that transforms in into out"
 function permutation(in,out)
@@ -371,12 +446,6 @@ function permutation(in,out)
         permutation[i] = m
     end
     return permutation
-end
-
-          
-          
-function partialtrace{T,N,Indices}(tensor::Tensor{T,N,Indices})
-    return tensor
 end
 
 
@@ -425,3 +494,4 @@ function replace_ref_vect_with_tuple_val!(a::Expr)
 end
    
 end # module
+
