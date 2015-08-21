@@ -217,15 +217,15 @@ end
 .^{Tx<:Number,T,N,Indices}(tensor::Tensor{T,N,Indices},x::Tx) = Tensor{promote_type(T,Tx),N,Indices}(tensor.data .^ x)
 
 # Common element-wise functions such as exp, log, sin, cos, etc
-exp{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(exp(tensor.data))
-log{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(log(tensor.data))
-sin{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(sin(tensor.data))
-cos{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(cos(tensor.data))
-tan{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(tan(tensor.data))
-sinh{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(sinh(tensor.data))
-cosh{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(cosh(tensor.data))
-tanh{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(tanh(tensor.data))
-sqrt{T,N,Indices}(tensor::Tensor{T,N,Indices},x) = Tensor{T,N,Indices}(sqrt(tensor.data))
+exp{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(exp(tensor.data))
+log{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(log(tensor.data))
+sin{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(sin(tensor.data))
+cos{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(cos(tensor.data))
+tan{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(tan(tensor.data))
+sinh{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(sinh(tensor.data))
+cosh{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(cosh(tensor.data))
+tanh{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(tanh(tensor.data))
+sqrt{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(sqrt(tensor.data))
 
 # Complex conjugation
 conj{T<:Real,N,Indices}(tensor::Tensor{T,N,Indices}) = tensor
@@ -457,10 +457,10 @@ end
 ##############
 ### Macros ###
 ##############
-"Macro takes expression and replaces [[ a, ... ]] with [Val{:a},...]"
+"Macro takes expression and replaces [[ a, ... ]] with [Tuple{:a,...}]"
 macro tensor(ex)
     # search through ex and replace all instances of vect with something else
-    replace_ref_vect_with_tuple_val!(ex)
+    replace_ref_vect_with_tuple!(ex)
           
     return esc(ex) # esc() means ex gets returned as-is for running in the caller's scope
 end
@@ -470,11 +470,11 @@ export @tensor
 #######################
 ### Code generation ###
 #######################
-"Recursive function that replaces [[ a, ... ]] with [Val{:a},...] in an expression tree"
-function replace_ref_vect_with_tuple_val!(a::Expr)
+"Recursive function that replaces [[ a, ... ]] with [Tuple{:a,...}] in an expression tree"
+function replace_ref_vect_with_tuple!(a::Expr)
     for i = 1:length(a.args)
 		if isa(a.args[i],Expr)
-		    replace_ref_vect_with_tuple_val!(a.args[i])
+		    replace_ref_vect_with_tuple!(a.args[i])
 		end
 	end
 	
@@ -487,7 +487,7 @@ function replace_ref_vect_with_tuple_val!(a::Expr)
             for i = 1:length(a.args[2].args)
                 tmp2 = (a.args[2].args[i])
                 if isa(tmp2,Symbol)
-                    tmp[i+1] = Val{:($tmp2)}
+                    tmp[i+1] = :($tmp2)
                 else
                     tmp[i+1] = tmp2
                 end
