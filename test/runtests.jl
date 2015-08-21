@@ -1,4 +1,4 @@
-using TensorContraction
+using Tensors
 using Base.Test
 
 # write your own tests here

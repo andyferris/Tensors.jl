@@ -1,4 +1,4 @@
-The TensorContraction.jl package is licensed under the MIT "Expat" License:
+The Tensors.jl package is licensed under the MIT "Expat" License:
 
 > Copyright (c) 2015: Andy Ferris.
 >

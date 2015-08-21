@@ -1,7 +1,4 @@
-module TensorContraction
-
-"A pair of index values, intended for Tensor parameters, which may be nested"
-type IndexPair{Index1,Index2}; end
+module Tensors
 
 "A multi-dimensional array decorated with index names"
 type Tensor{T,N,Indices<:Tuple} <: AbstractArray{T,N}
