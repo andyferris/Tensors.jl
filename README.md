@@ -47,7 +47,7 @@ The `@tensor` macro is for convenience, mangling the expression so that ``[[1,2,
 
 ### TODO / Ideas to implement
 
-1. Labelled eigen-decomposition, SVD, etc. Specify the left and right index names of the "matrix" by `eig(tensor,Indices_left,Indices_right,Index_out=Tuple{0}`, automatically managing the permutes, reshapes and output label names.
+1. Labelled `eigs` and `svds`.
 
 2. A macro for automatic loop unrolling of some indices. This will allow for (a) reducing memory requirements of some tensor network contractions and (b) multi-index contractions, e.g. `a[[i]]*b[[i]]*c[[i]]` performs `sum(a.*b.*c)` and `a[[i]] = b[[i]]*c[[i]]` is equivalent to `a = b.*c`.
 
