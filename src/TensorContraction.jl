@@ -358,7 +358,6 @@ conj{T,N,Indices}(tensor::Tensor{T,N,Indices}) = Tensor{T,N,Indices}(conj(tensor
 end
 
 # Eigenvalue with indices arranged
-# TODO current output has left indices on the right-hand matrix... need an infrastructure for the inverse, which to return, etc.
 @generated function eig{T,N,Indices,IndicesLeft<:Tuple,IndicesRight<:Tuple,IndicesEig<:Tuple}(tensor::Tensor{T,N,Indices},::Type{IndicesLeft},::Type{IndicesRight},index_eig::Type{IndicesEig} = Tuple{:eig})    
     # We need to permute the matrix into order [indices_left, indices_right]
     idx = svec_to_vec(Indices.parameters)
@@ -370,7 +369,7 @@ end
     if length(idx) != length(idx_permuted); return :(error("Number of indices ($(length(idx_left)), $(length(idx_right))) does not match tensor's $N")); end
     if length(idx_left) == 0; return :(error("At least one left index must be specified")); end
     if length(idx_right) == 0; return :(error("At least one right index must be specified")); end
-    if length(idx_eig) != 1; return :(error("Only one index should be associated with the eigenvalue")); end
+    if length(idx_eig) != 1; return :(error("Only one index should be associated with the eigenvalues")); end
     
     p = permutation(idx,idx_permuted)
         
@@ -397,26 +396,78 @@ end
     ex_str = "begin; "
     if idx_permuted == idx # No permutation necessary, only reshape.
         ex_str = ex_str * "(D,V) = eig(reshape(tensor.data,($size_left,$size_right))); "
-        ex_str = ex_str * "(Tensor{$T,1,Tuple{$(str_eig)}}(D),Tensor{$T,$(1+length(idx_left)),Tuple{"
-        for i = 1:length(idx_left)
-            ex_str = ex_str * "$(str_left[i]),"
-        end
-        ex_str = ex_str * "$(str_eig)}}(reshape(V,($(resize_left),$(size_left))))); "
-        
     else # permutation is necessary
         ex_str = ex_str * "(D,V) = eig(reshape(permutedims(tensor.data,$p),($size_left,$size_right))); "
-        ex_str = ex_str * "(Tensor{$T,1,Tuple{$(str_eig)}}(D),Tensor{$T,$(1+length(idx_left)),Tuple{"
-        for i = 1:length(idx_left)
-            ex_str = ex_str * "$(str_left[i]),"
-        end
-        ex_str = ex_str * "$(str_eig)}}(reshape(V,($(resize_left),$(size_left))))); "
     end  
+
+	ex_str = ex_str * "(Tensor{$T,1,Tuple{$(str_eig)}}(D),Tensor{$T,$(1+length(idx_left)),Tuple{"
+	for i = 1:length(idx_left)
+		ex_str = ex_str * "$(str_left[i]),"
+	end
+	ex_str = ex_str * "$(str_eig)}}(reshape(V,($(resize_left),$(size_left))))); "
     
     ex_str = ex_str * "end"
     #display(ex_str)
     return parse(ex_str)
 end
 
+
+@generated function svd{T,N,Indices,IndicesLeft<:Tuple,IndicesRight<:Tuple,IndicesSVD<:Tuple}(tensor::Tensor{T,N,Indices},::Type{IndicesLeft},::Type{IndicesRight},index_svd::Type{IndicesSVD} = Tuple{:svd})    
+    # We need to permute the matrix into order [indices_left, indices_right]
+    idx = svec_to_vec(Indices.parameters)
+    idx_left = svec_to_vec(IndicesLeft.parameters)
+    idx_right = svec_to_vec(IndicesRight.parameters)
+    idx_permuted = vcat(idx_left,idx_right)
+    idx_svd = svec_to_vec(IndicesSVD.parameters)
+    
+    if length(idx) != length(idx_permuted); return :(error("Number of indices ($(length(idx_left)), $(length(idx_right))) does not match tensor's $N")); end
+    if length(idx_left) == 0; return :(begin; n = vecnorm(tensor.data); (one(T),n,tensor/n); end); end
+    if length(idx_right) == 0; return :(begin; n = vecnorm(tensor.data); (tensor/n,n,one(T)); end); end
+    if length(idx_svd) != 1; return :(error("Only one index should be associated with the singular values")); end
+    
+    p = permutation(idx,idx_permuted)
+        
+    # sizes
+    size_left = "size(tensor.data,$(p[1]))"
+    resize_left = "size(tensor.data,$(p[1]))"
+    for i = 2:length(idx_left)
+        size_left = size_left * "*size(tensor.data,$(p[i]))"
+        resize_left = resize_left * ",size(tensor.data,$(p[i]))"
+    end    
+    size_right = "size(tensor.data,$(p[1+length(idx_left)]))"
+    resize_right = "size(tensor.data,$(p[1+length(idx_left)]))"
+    for i = 2:length(idx_right)
+        size_right = size_right * "*size(tensor.data,$(p[i+length(idx_left)]))"
+        resize_right = resize_right * ",size(tensor.data,$(p[i+length(idx_left)]))"
+    end    
+    
+    str_left = Vector{String}(length(idx_left))
+    for i = 1:length(idx_left); isa(idx_left[i],Symbol) ? str_left[i] = ":$(idx_left[i])" : str_left[i] = "$(idx_left[i])"; end
+    str_right = Vector{String}(length(idx_right))
+    for i = 1:length(idx_right); isa(idx_right[i],Symbol) ? str_right[i] = ":$(idx_right[i])" : str_right[i] = "$(idx_right[i])"; end
+    str_svd = (isa(idx_svd[1],Symbol) ? ":$(idx_svd[1])" : "$(idx_svd[1])")
+    
+    ex_str = "begin; "
+    if idx_permuted == idx # No permutation necessary, only reshape.
+        ex_str = ex_str * "(U,S,V) = svd(reshape(tensor.data,($size_left,$size_right))); "
+    else # permutation is necessary
+        ex_str = ex_str * "(U,S,V) = svd(reshape(permutedims(tensor.data,$p),($size_left,$size_right))); "
+    end  
+    
+    ex_str = ex_str * "(Tensor{$T,$(1+length(idx_left)),Tuple{"
+	for i = 1:length(idx_left)
+		ex_str = ex_str * "$(str_left[i]),"
+	end
+	ex_str = ex_str * "$(str_svd)}}(reshape(U,($(resize_left),$(size_left)))), Tensor{$T,1,Tuple{$(str_svd)}}(S), Tensor{$T,$(1+length(idx_right)),Tuple{"
+	for i = 1:length(idx_right)
+		ex_str = ex_str * "$(str_right[i]),"
+	end
+	ex_str = ex_str * "$(str_svd)}}(reshape(V,($(resize_right),$(size_right))))); "
+    
+    ex_str = ex_str * "end"
+    display(ex_str)
+    return parse(ex_str)
+end
 
 #################
 ### Utilities ###

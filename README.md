@@ -14,7 +14,9 @@ M = [x*y for x=2:5,y=3:6]
 
 This implements matrix-vector multiplication, resulting in a vector with a single index named `a`. 
 
-Tensors can also be de-indexed in the desired order, on either side of the equality:
+### Features
+
+1. Tensors can also be de-indexed in the desired order, on either side of the equality:
 
 ```julia
 @tensor M = (rand(4,4))[[a,b]] # a rank-2 tensor
@@ -22,7 +24,10 @@ Tensors can also be de-indexed in the desired order, on either side of the equal
 @tensor M2[[b,a]] = M # M2 must already be of type Array{T,2}
 ```
 
-Tensor's that have not been deindexed remain as `Tensor` objects, but can be treated as arrays.
+2. Tensor's that have not been deindexed remain as `Tensor` objects, but can be treated as arrays. Operations such as `+` will automatically take care of the necessary permutations. Several common element-wise operations like `exp`, `log`, `sin`, `cos` are defined.
+
+3. `eig` and `svd` have been defined for tensors. Use, e.g., `svd(tensor,LeftIndices::Tuple,RightIndices::Tuple)` to generate the SVD of the tensor where the matrix form is interpreted as `LeftIndices` by `RightIndices`, and the output are appropriately labelled tensors.
+
 
 ### How it works
 
@@ -37,6 +42,8 @@ The `@tensor` macro is for convenience, mangling the expression so that ``[[1,2,
 1. For full speed, ensure that the names of the indices are fully determined at compile-time so that the appropriate code is only generated once and so that function *specialization by value* does not lead to performance degradation.
 
 2. Single-bracket indexing is still safe - use `hcat` and `vcat` when necessary to concatenate inside expresions like `@tensor v[vcat(indices1,indices2)][[a]]`. 
+
+3. Some operations, defined by AbstractArray, may lead to an automatic de-indexing of a `Tensor` to an `Array` - for instance, those that automatically fall back to `broadcast!()`.
 
 ### TODO / Ideas to implement
 
